@@ -1,2 +1,2 @@
 # CS231n
-## Hello Github
+## Hello GitHub
