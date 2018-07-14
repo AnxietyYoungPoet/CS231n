@@ -209,6 +209,11 @@ class FullyConnectedNet(object):
         self.bn_params = []
         if self.normalization == 'batchnorm':
             self.bn_params = [{'mode': 'train'} for i in range(self.num_layers - 1)]
+            for i in range(self.num_layers - 1):
+                self.bn_params[i]['running_mean'] = np.zeros(hidden_dims[i])
+                self.bn_params[i]['running_var'] = np.zeros(hidden_dims[i])
+                self.params['gamma%d' % (i + 1)] = np.ones(hidden_dims[i])
+                self.params['beta%d' % (i + 1)] = np.zeros(hidden_dims[i])
         if self.normalization == 'layernorm':
             self.bn_params = [{} for i in range(self.num_layers - 1)]
 
@@ -251,7 +256,14 @@ class FullyConnectedNet(object):
         for i in np.arange(self.num_layers - 1):
             W = self.params['W%d' % (i + 1)]
             b = self.params['b%d' % (i + 1)]
-            Z, cache = affine_relu_forward(last_output, W, b)
+            if self.normalization == 'batchnorm':
+                a, affine_cache = affine_forward(last_output, W, b)
+                gamma = self.params['gamma%d' % (i + 1)]
+                beta = self.params['beta%d' % (i + 1)]
+                Z, bn_caches = batchnorm_forward(a, gamma, beta, self.bn_params[i])
+                cache = (affine_cache, bn_caches)
+            else:
+                Z, cache = affine_relu_forward(last_output, W, b)
             Zs.append(Z)
             caches.append(cache)
             last_output = Z
@@ -295,7 +307,14 @@ class FullyConnectedNet(object):
             Z = Zs[i - 1]
             cache = caches[i - 1]
             W = self.params['W%d' % (i)]
-            dX, dW, db = affine_relu_backward(upstream, cache)
+            if self.normalization == 'batchnorm':
+                affine_cache, bn_cache = cache
+                da, dgamma, dbeta = batchnorm_backward(upstream, bn_cache)
+                dX, dW, db = affine_backward(da, affine_cache)
+                grads['gamma%d' % (i)] = dgamma
+                grads['beta%d' % (i)] = dbeta
+            else:
+                dX, dW, db = affine_relu_backward(upstream, cache)
             grads['W%d' % (i)] = dW + self.reg * W
             grads['b%d' % (i)] = db
             upstream = dX
