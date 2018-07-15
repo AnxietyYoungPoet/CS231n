@@ -215,7 +215,7 @@ class FullyConnectedNet(object):
                 self.params['gamma%d' % (i + 1)] = np.ones(hidden_dims[i])
                 self.params['beta%d' % (i + 1)] = np.zeros(hidden_dims[i])
         if self.normalization == 'layernorm':
-            self.bn_params = [{} for i in range(self.num_layers - 1)]
+            self.ln_params = [{} for i in range(self.num_layers - 1)]
             for i in range(self.num_layers - 1):
                 self.params['gamma%d' % (i + 1)] = np.ones(hidden_dims[i])
                 self.params['beta%d' % (i + 1)] = np.zeros(hidden_dims[i])
@@ -254,32 +254,36 @@ class FullyConnectedNet(object):
         # layer, etc.                                                              #
         ############################################################################
         last_output = X
-        Zs = []
         caches = []
         for i in np.arange(self.num_layers - 1):
             W = self.params['W%d' % (i + 1)]
             b = self.params['b%d' % (i + 1)]
+            cache = {}
             if self.normalization == 'batchnorm':
-                a, affine_cache = affine_forward(last_output, W, b)
+                bn_param = self.bn_params[i]
                 gamma = self.params['gamma%d' % (i + 1)]
                 beta = self.params['beta%d' % (i + 1)]
-                Z, bn_caches = batchnorm_forward(a, gamma, beta, self.bn_params[i])
-                cache = (affine_cache, bn_caches)
+                Z, affine_bn_relu_cache = affine_bn_relu_forward(
+                    last_output, W, b, gamma, beta, bn_param)
+                cache['affine_bn_relu_cache'] = affine_bn_relu_cache
             elif self.normalization == 'layernorm':
-                a, affine_cache = affine_forward(last_output, W, b)
+                ln_param = self.ln_params[i]
                 gamma = self.params['gamma%d' % (i + 1)]
                 beta = self.params['beta%d' % (i + 1)]
-                Z, bn_caches = layernorm_forward(a, gamma, beta, self.bn_params[i])
-                cache = (affine_cache, bn_caches)
+                Z, affine_ln_relu_cache = affine_ln_relu_forward(
+                    last_output, W, b, gamma, beta, ln_param)
+                cache['affine_ln_relu_cache'] = affine_ln_relu_cache
             else:
-                Z, cache = affine_relu_forward(last_output, W, b)
-            Zs.append(Z)
+                Z, affine_relu_cache = affine_relu_forward(last_output, W, b)
+                cache['affine_relu_cache'] = affine_relu_cache
+            if self.use_dropout:
+                Z, dp_cache = dropout_forward(Z, dropout_param)
+                cache['dp_cache'] = dp_cache
             caches.append(cache)
             last_output = Z
         W = self.params['W%d' % (self.num_layers)]
         b = self.params['b%d' % (self.num_layers)]
         scores, cache = affine_forward(last_output, W, b)
-        Zs.append(scores)
         caches.append(cache)
         ############################################################################
         #                             END OF YOUR CODE                             #
@@ -313,23 +317,24 @@ class FullyConnectedNet(object):
         grads['b%d' % (self.num_layers)] = db
         upstream = dZ
         for i in np.arange(self.num_layers - 1, 0, step=-1):
-            Z = Zs[i - 1]
             cache = caches[i - 1]
             W = self.params['W%d' % (i)]
+            if self.use_dropout:
+                dp_cache = cache['dp_cache']
+                upstream = dropout_backward(upstream, dp_cache)
             if self.normalization == 'batchnorm':
-                affine_cache, bn_cache = cache
-                da, dgamma, dbeta = batchnorm_backward(upstream, bn_cache)
-                dX, dW, db = affine_backward(da, affine_cache)
+                bn_cache = cache['affine_bn_relu_cache']
+                dX, dW, db, dgamma, dbeta = affine_bn_relu_backward(upstream, bn_cache)
                 grads['gamma%d' % (i)] = dgamma
                 grads['beta%d' % (i)] = dbeta
             elif self.normalization == 'layernorm':
-                affine_cache, bn_cache = cache
-                da, dgamma, dbeta = layernorm_backward(upstream, bn_cache)
-                dX, dW, db = affine_backward(da, affine_cache)
+                ln_cache = cache['affine_ln_relu_cache']
+                dX, dW, db, dgamma, dbeta = affine_ln_relu_backward(upstream, ln_cache)
                 grads['gamma%d' % (i)] = dgamma
                 grads['beta%d' % (i)] = dbeta
             else:
-                dX, dW, db = affine_relu_backward(upstream, cache)
+                affine_relu_cache = cache['affine_relu_cache']
+                dX, dW, db = affine_relu_backward(upstream, affine_relu_cache)
             grads['W%d' % (i)] = dW + self.reg * W
             grads['b%d' % (i)] = db
             upstream = dX
