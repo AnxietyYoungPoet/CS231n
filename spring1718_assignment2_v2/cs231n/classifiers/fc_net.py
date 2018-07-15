@@ -277,7 +277,7 @@ class FullyConnectedNet(object):
                 Z, affine_relu_cache = affine_relu_forward(last_output, W, b)
                 cache['affine_relu_cache'] = affine_relu_cache
             if self.use_dropout:
-                Z, dp_cache = dropout_forward(Z, dropout_param)
+                Z, dp_cache = dropout_forward(Z, self.dropout_param)
                 cache['dp_cache'] = dp_cache
             caches.append(cache)
             last_output = Z
