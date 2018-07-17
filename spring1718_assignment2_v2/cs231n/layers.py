@@ -494,20 +494,17 @@ def conv_forward_naive(x, w, b, conv_param):
     pad = conv_param['pad']
     H_out = 1 + (H + 2 * pad - HH) // stride
     W_out = 1 + (W + 2 * pad - WW) // stride
-    print(H_out, W_out)
     out = np.zeros([N, F, H_out, W_out])
     for i in range(N):
         temp_x = np.pad(
-            x[i], ((0,), (1, ), (1, )), 'constant', constant_values=((0, 0), (0, 0), (0, 0)))
+            x[i], ((0,), (pad, ), (pad, )), 'constant')
         for row in range(H_out):
             start_row = row * stride
             for col in range(W_out):
                 start_col = stride * col
                 x_cnn = temp_x[:, start_row:start_row + HH, start_col:start_col + WW]
                 temp_mul = w * x_cnn
-                # print(temp_mul.shape)
-                out[i, :, row, col] = np.sum(
-                    np.sum(np.sum(temp_mul, axis=-1), axis=-1), axis=-1) + b
+                out[i, :, row, col] = np.sum(temp_mul, axis=(1, 2, 3)) + b
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -528,11 +525,26 @@ def conv_backward_naive(dout, cache):
     - dw: Gradient with respect to w
     - db: Gradient with respect to b
     """
-    dx, dw, db = None, None, None
+    dx, dw, db = 0, None, 0
     ###########################################################################
     # TODO: Implement the convolutional backward pass.                        #
     ###########################################################################
-    pass
+    x, w, b, conv_param = cache
+    F, C, HH, WW = w.shape
+    x_trans = x.transpose(1, 0, 2, 3)
+    dout_trans = dout.transpose(1, 0, 2, 3)
+    wb = np.zeros(F)
+    xb = np.zeros(C)
+    dw, _ = conv_forward_naive(x_trans, dout_trans, wb, conv_param)
+    dw = dw.transpose(1, 0, 2, 3)
+    w_trans = w.transpose(1, 0, 2, 3)
+    rotate_w = np.zeros_like(w_trans)
+    for i in range(C):
+        for j in range(F):
+            x_2d = w_trans[i][j].reshape(-1)
+            rotate_w[i][j] = x_2d[::-1].reshape(w_trans[i][j].shape)
+    dx, _ = conv_forward_naive(dout, rotate_w, xb, conv_param)
+    db = np.sum(dout, axis=(0, 2, 3))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
