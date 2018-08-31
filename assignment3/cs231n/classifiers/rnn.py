@@ -213,7 +213,23 @@ class CaptioningRNN(object):
         # NOTE: we are still working over minibatches in this function. Also if   #
         # you are using an LSTM, initialize the first cell state to zeros.        #
         ###########################################################################
-        pass
+        N, _ = features.shape
+        h0 = features.dot(W_proj) + b_proj
+        start_token = np.zeros(N, dtype=np.int32) + self._start
+        embed_start = W_embed[start_token, :]
+        prev_h = h0
+        x = embed_start
+        length = 0
+        while True:
+            next_h, _ = rnn_step_forward(x, prev_h, Wx, Wh, b)
+            scores = next_h.dot(W_vocab) + b_vocab
+            x = np.argmax(scores, axis=1)
+            captions[:, length] = x
+            length += 1
+            if length >= max_length:
+                break
+            prev_h = next_h
+            x = W_embed[x, :]
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
