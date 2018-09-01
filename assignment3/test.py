@@ -11,3 +11,4 @@ def f(x):
 
 dout = np.random.randn(3, 3)
 print(dout[[[0, 1], [2, 1]], :])
+raise FileExistsError('No such file')

@@ -139,14 +139,21 @@ class CaptioningRNN(object):
         # Note also that you are allowed to make use of functions from layers.py   #
         # in your implementation, if needed.                                       #
         ############################################################################
+        cell_type = self.cell_type
         N, D = features.shape
         x, embeding_cache = word_embedding_forward(captions_in, W_embed)
         h0 = features.dot(W_proj) + b_proj
-        h, h_cache = rnn_forward(x, h0, Wx, Wh, b)
+        if cell_type == 'rnn':
+            h, h_cache = rnn_forward(x, h0, Wx, Wh, b)
+        else:
+            h, h_cache = lstm_forward(x, h0, Wx, Wh, b)
         scores, score_cache = temporal_affine_forward(h, W_vocab, b_vocab)
         loss, dout = temporal_softmax_loss(scores, captions_out, mask)
         dout, grads['W_vocab'], grads['b_vocab'] = temporal_affine_backward(dout, score_cache)
-        dout, dh0, grads['Wx'], grads['Wh'], grads['b'] = rnn_backward(dout, h_cache)
+        if cell_type == 'rnn':
+            dout, dh0, grads['Wx'], grads['Wh'], grads['b'] = rnn_backward(dout, h_cache)
+        else:
+            dout, dh0, grads['Wx'], grads['Wh'], grads['b'] = lstm_backward(dout, h_cache)
         grads['W_proj'] = features.T.dot(dh0)
         grads['b_proj'] = np.sum(dh0, axis=0)
         grads['W_embed'] = word_embedding_backward(dout, embeding_cache)
@@ -218,10 +225,15 @@ class CaptioningRNN(object):
         start_token = np.zeros(N, dtype=np.int32) + self._start
         embed_start = W_embed[start_token, :]
         prev_h = h0
+        prev_c = np.zeros_like(h0)
         x = embed_start
         length = 0
         while True:
-            next_h, _ = rnn_step_forward(x, prev_h, Wx, Wh, b)
+            if self.cell_type is 'rnn':
+                next_h, _ = rnn_step_forward(x, prev_h, Wx, Wh, b)
+            else:
+                next_h, next_c, _ = lstm_step_forward(x, prev_h, prev_c, Wx, Wh, b)
+                prev_c = next_c
             scores = next_h.dot(W_vocab) + b_vocab
             x = np.argmax(scores, axis=1)
             captions[:, length] = x
