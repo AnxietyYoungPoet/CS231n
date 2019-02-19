@@ -49,7 +49,7 @@ def affine_backward(dout, cache):
     - dw: Gradient with respect to w, of shape (D, M)
     - db: Gradient with respect to b, of shape (M,)
     """
-    x, w, b = cache
+    x, w, _ = cache
     x_shape = x.shape
     N = x_shape[0]
     dx, dw, db = None, None, None

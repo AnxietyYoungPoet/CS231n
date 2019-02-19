@@ -82,7 +82,6 @@ class TwoLayerNet(object):
         W1, b1 = self.params['W1'], self.params['b1']
         W2, b2 = self.params['W2'], self.params['b2']
         X = X.reshape(X.shape[0], -1)
-        N, D = X.shape
         ############################################################################
         # TODO: Implement the forward pass for the two-layer net, computing the    #
         # class scores for X and storing them in the scores variable.              #
