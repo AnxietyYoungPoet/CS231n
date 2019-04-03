@@ -161,6 +161,7 @@ class KNearestNeighbor(object):
       sorted_idx = np.argsort(np.ravel(dists[i]))
       # print(np.ravel(dists[i]).shape)
       closest_y = self.y_train[sorted_idx[:k]]
+      # print(np.bincount(closest_y))
       #########################################################################
       # TODO:                                                                 #
       # Now that you have found the labels of the k nearest neighbors, you    #
